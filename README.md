@@ -15,6 +15,7 @@ This project provides a robust orchestration layer for managing multiple web scr
 Currently includes scrapers for:
 - **FDA Press Announcements** - Drug safety, food recalls, medical devices
 - **NIH News Releases** - Medical research, clinical trials, health breakthroughs
+- **Will update more these are the sample site**
 
 ## Features
 
@@ -88,7 +89,7 @@ web-scraper-orchestrator/
 ├── base_scraper.py              # Main orchestrator
 ├── scrapers/                     # Scraper modules directory
 │   ├── fda_scraper.py           # FDA press announcements
-│   └── nih_scraper.py           # NIH news releases
+│   └── nih_scraper.py           # NIH news releases include you specific website scraper here.
 ├── scraped_data/                 # Output directory (auto-created)
 │   ├── master_scraped_data.json # Cumulative database
 │   └── report_*.txt             # Session reports
@@ -404,10 +405,7 @@ Potential additions:
 - Database backend instead of JSON
 - Web UI for monitoring and configuration
 - Scheduled/cron job support
-- Export to CSV/Excel
 - Email notifications on completion
-- Proxy rotation support
-- Browser automation for JS-heavy sites
 
 ## Questions?
 
