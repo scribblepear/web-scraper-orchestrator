@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Universal Web Scraper Orchestrator - Enhanced with URL Deduplication
-Maintains a single JSON file and prevents duplicate scraping
-"""
-
 import json
 import os
 import sys
@@ -132,14 +126,198 @@ class ScraperResult:
             'errors': self.errors
         }
 
-class ScraperOrchestrator:
-    """Main orchestrator with deduplication support"""
+class FeedGenerator:
+    """Generate lightweight JSON feeds for web display"""
     
-    def __init__(self, scrapers_directory: str = "scrapers", output_directory: str = "scraped_data", master_file: str = "master_scraped_data.json"):
+    def __init__(self, feeds_directory: str = "feeds"):
+        self.feeds_directory = Path(feeds_directory)
+        self.feeds_directory.mkdir(exist_ok=True)
+        
+        # Create subdirectories
+        self.latest_by_scraper_dir = self.feeds_directory / "latest_by_scraper"
+        self.latest_by_scraper_dir.mkdir(exist_ok=True)
+        
+        self.archive_dir = self.feeds_directory / "archive"
+        self.archive_dir.mkdir(exist_ok=True)
+    
+    def create_lightweight_item(self, item: Dict[str, Any], item_type: str = 'announcement') -> Dict[str, Any]:
+        """Extract only essential fields for web display"""
+        
+        if item_type == 'announcement':
+            return {
+                'id': item.get('id', ''),
+                'title': item.get('title', ''),
+                'url': item.get('url', ''),
+                'date': item.get('date', ''),
+                'category': item.get('category', 'General'),
+                'excerpt': item.get('excerpt', '')[:200] if item.get('excerpt') else '',  # Limit excerpt
+                'source_website': item.get('source_website', ''),
+                'scraped_at': item.get('scraped_at', '')
+            }
+        else:  # full_content
+            return {
+                'id': item.get('id', ''),
+                'title': item.get('title', ''),
+                'url': item.get('url', ''),
+                'date_published': item.get('date_published', ''),
+                'source_website': item.get('source_website', ''),
+                'scraped_at': item.get('scraped_at', ''),
+                'word_count': item.get('word_count', 0)
+            }
+    
+    def generate_latest_feed(self, master_data: Dict[str, Any], max_items: int = 100) -> str:
+        """Generate latest feed across all scrapers"""
+        
+        all_items = []
+        
+        for scraper_name, scraper_data in master_data.get('results_by_scraper', {}).items():
+            # Collect announcements
+            for announcement in scraper_data.get('announcements', []):
+                lightweight_item = self.create_lightweight_item(announcement, 'announcement')
+                lightweight_item['scraper'] = scraper_name
+                all_items.append(lightweight_item)
+        
+        # Sort by date (most recent first)
+        all_items.sort(key=lambda x: x.get('date', '') or x.get('scraped_at', ''), reverse=True)
+        
+        # Limit to max_items
+        latest_items = all_items[:max_items]
+        
+        feed = {
+            'feed_type': 'latest',
+            'generated_at': datetime.now().isoformat(),
+            'total_items': len(latest_items),
+            'max_items': max_items,
+            'items': latest_items
+        }
+        
+        # Save feed
+        feed_path = self.feeds_directory / "latest_feed.json"
+        with open(feed_path, 'w', encoding='utf-8') as f:
+            json.dump(feed, f, indent=2, ensure_ascii=False)
+        
+        print(f"Latest feed generated: {feed_path} ({len(latest_items)} items)")
+        return str(feed_path)
+    
+    def generate_scraper_feeds(self, master_data: Dict[str, Any], max_items_per_scraper: int = 50) -> List[str]:
+        """Generate individual feeds for each scraper"""
+        
+        feed_paths = []
+        
+        for scraper_name, scraper_data in master_data.get('results_by_scraper', {}).items():
+            items = []
+            
+            # Collect announcements
+            for announcement in scraper_data.get('announcements', []):
+                lightweight_item = self.create_lightweight_item(announcement, 'announcement')
+                items.append(lightweight_item)
+            
+            # Sort by date (most recent first)
+            items.sort(key=lambda x: x.get('date', '') or x.get('scraped_at', ''), reverse=True)
+            
+            # Limit to max_items
+            latest_items = items[:max_items_per_scraper]
+            
+            feed = {
+                'feed_type': 'scraper_specific',
+                'scraper_name': scraper_name,
+                'website': scraper_data.get('scraper_info', {}).get('website', 'Unknown'),
+                'generated_at': datetime.now().isoformat(),
+                'total_items': len(latest_items),
+                'max_items': max_items_per_scraper,
+                'items': latest_items
+            }
+            
+            # Save feed
+            feed_path = self.latest_by_scraper_dir / f"{scraper_name}.json"
+            with open(feed_path, 'w', encoding='utf-8') as f:
+                json.dump(feed, f, indent=2, ensure_ascii=False)
+            
+            feed_paths.append(str(feed_path))
+            print(f"Scraper feed generated: {feed_path} ({len(latest_items)} items)")
+        
+        return feed_paths
+    
+    def generate_monthly_archive(self, master_data: Dict[str, Any], year: int, month: int) -> str:
+        """Generate monthly archive feed"""
+        
+        month_str = f"{year}-{month:02d}"
+        all_items = []
+        
+        for scraper_name, scraper_data in master_data.get('results_by_scraper', {}).items():
+            # Collect items from specified month
+            for announcement in scraper_data.get('announcements', []):
+                date = announcement.get('date', '')
+                if date.startswith(month_str):
+                    lightweight_item = self.create_lightweight_item(announcement, 'announcement')
+                    lightweight_item['scraper'] = scraper_name
+                    all_items.append(lightweight_item)
+        
+        # Sort by date
+        all_items.sort(key=lambda x: x.get('date', ''), reverse=True)
+        
+        feed = {
+            'feed_type': 'monthly_archive',
+            'year': year,
+            'month': month,
+            'generated_at': datetime.now().isoformat(),
+            'total_items': len(all_items),
+            'items': all_items
+        }
+        
+        # Save feed
+        feed_path = self.archive_dir / f"{year}-{month:02d}.json"
+        with open(feed_path, 'w', encoding='utf-8') as f:
+            json.dump(feed, f, indent=2, ensure_ascii=False)
+        
+        print(f"Monthly archive generated: {feed_path} ({len(all_items)} items)")
+        return str(feed_path)
+    
+    def generate_feed_index(self, master_data: Dict[str, Any]) -> str:
+        """Generate index of all available feeds"""
+        
+        # Get list of available scraper feeds
+        scraper_feeds = []
+        if self.latest_by_scraper_dir.exists():
+            scraper_feeds = [f.stem for f in self.latest_by_scraper_dir.glob("*.json")]
+        
+        # Get list of monthly archives
+        monthly_archives = []
+        if self.archive_dir.exists():
+            monthly_archives = [f.stem for f in self.archive_dir.glob("*.json")]
+        
+        index = {
+            'generated_at': datetime.now().isoformat(),
+            'feeds': {
+                'latest': 'latest_feed.json',
+                'by_scraper': scraper_feeds,
+                'monthly_archives': monthly_archives
+            },
+            'statistics': master_data.get('summary', {}),
+            'available_scrapers': list(master_data.get('results_by_scraper', {}).keys())
+        }
+        
+        # Save index
+        index_path = self.feeds_directory / "index.json"
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(index, f, indent=2, ensure_ascii=False)
+        
+        print(f"Feed index generated: {index_path}")
+        return str(index_path)
+
+class ScraperOrchestrator:
+    """Main orchestrator with deduplication and feed generation support"""
+    
+    def __init__(self, scrapers_directory: str = "scrapers", 
+                 output_directory: str = "scraped_data", 
+                 master_file: str = "master_scraped_data.json",
+                 feeds_directory: str = "feeds"):
         self.scrapers_directory = Path(scrapers_directory)
         self.output_directory = Path(output_directory)
         self.output_directory.mkdir(exist_ok=True)
         self.master_file_path = self.output_directory / master_file
+        
+        self.feed_generator = FeedGenerator(feeds_directory)
         
         self.loaded_scrapers = {}
         self.results = {}
@@ -410,6 +588,24 @@ class ScraperOrchestrator:
         print(f"Master file updated: {self.master_file_path}")
         return str(self.master_file_path)
     
+    def generate_feeds(self, max_latest_items: int = 100, max_per_scraper: int = 50):
+        """Generate all feed files"""
+        print("\n=== Generating Feeds ===")
+        
+        # Load master data
+        master_data = self.load_existing_data()
+        
+        # Generate latest feed
+        self.feed_generator.generate_latest_feed(master_data, max_latest_items)
+        
+        # Generate scraper-specific feeds
+        self.feed_generator.generate_scraper_feeds(master_data, max_per_scraper)
+        
+        # Generate feed index
+        self.feed_generator.generate_feed_index(master_data)
+        
+        print("=== Feed Generation Complete ===\n")
+    
     def generate_report(self, results: Dict[str, ScraperResult]) -> str:
         """Generate a summary report including deduplication stats"""
         existing_data = self.load_existing_data()
@@ -465,20 +661,31 @@ class ScraperOrchestrator:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description='Universal Web Scraper Orchestrator with Deduplication')
+    parser = argparse.ArgumentParser(description='Universal Web Scraper Orchestrator with Rolling Feeds')
     parser.add_argument('--start-date', required=True, help='Start date (YYYY-MM-DD)')
     parser.add_argument('--end-date', required=True, help='End date (YYYY-MM-DD)')
     parser.add_argument('--scraper', help='Run specific scraper (default: run all)')
     parser.add_argument('--scrapers-dir', default='scrapers', help='Directory containing scraper modules')
     parser.add_argument('--output-dir', default='scraped_data', help='Output directory')
+    parser.add_argument('--feeds-dir', default='feeds', help='Feeds output directory')
     parser.add_argument('--master-file', default='master_scraped_data.json', help='Master file name')
     parser.add_argument('--no-full-content', action='store_true', help='Skip full content scraping')
     parser.add_argument('--report-only', action='store_true', help='Generate report only')
+    parser.add_argument('--max-latest', type=int, default=100, help='Max items in latest feed')
+    parser.add_argument('--max-per-scraper', type=int, default=50, help='Max items per scraper feed')
+    parser.add_argument('--feeds-only', action='store_true', help='Only regenerate feeds from existing data')
     
     args = parser.parse_args()
     
     # Create orchestrator
-    orchestrator = ScraperOrchestrator(args.scrapers_dir, args.output_dir, args.master_file)
+    orchestrator = ScraperOrchestrator(args.scrapers_dir, args.output_dir, args.master_file, args.feeds_dir)
+    
+    # If feeds-only mode, skip scraping
+    if args.feeds_only:
+        print("Feeds-only mode: Regenerating feeds from existing data...")
+        orchestrator.generate_feeds(args.max_latest, args.max_per_scraper)
+        print("Feeds regenerated successfully!")
+        sys.exit(0)
     
     # Discover scrapers
     scrapers = orchestrator.discover_scrapers()
@@ -506,6 +713,9 @@ def main():
     if not args.report_only:
         master_file = orchestrator.update_master_file(results)
         print(f"Data saved to master file: {master_file}")
+        
+        # Generate feeds after updating master file
+        orchestrator.generate_feeds(args.max_latest, args.max_per_scraper)
     
     # Generate and print report
     report = orchestrator.generate_report(results)
@@ -522,4 +732,19 @@ if __name__ == "__main__":
     main()
 
 
-    # python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --scraper fda_scraper
+# USAGE EXAMPLES:
+# 
+# 1. Run all scrapers and generate feeds:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30
+#
+# 2. Run specific scraper:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --scraper fda_scraper
+#
+# 3. Regenerate feeds only (no scraping):
+#    python base_scraper.py --feeds-only
+#
+# 4. Custom feed sizes:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --max-latest 200 --max-per-scraper 100
+#
+# 5. Custom output directories:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --feeds-dir public/feeds
