@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical News Aggregator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 1.1em;
+        }
+
+        .stats {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .stats-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border-radius: 10px;
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #718096;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+
+        .scraper-info {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .scraper-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .scraper-tab {
+            padding: 10px 20px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .scraper-tab:hover {
+            background: #edf2f7;
+        }
+
+        .scraper-tab.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .filter-box select {
+            padding: 12px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .filter-box select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        .news-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .news-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .source-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 4px 10px;
+            background: #48bb78;
+            color: white;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+
+        .category-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .news-date {
+            color: #a0aec0;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .news-title {
+            color: #2d3748;
+            font-size: 1.3em;
+            font-weight: 700;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .news-excerpt {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .news-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .news-link:hover {
+            color: #5568d3;
+        }
+
+        .no-results {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            color: #718096;
+            font-size: 1.2em;
+        }
+
+        .loading {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 2px solid #fcc;
+        }
+
+        .pagination {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pagination-btn {
+            padding: 10px 18px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            color: #2d3748;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: #f7fafc;
+            border-color: #667eea;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .pagination-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .pagination-info {
+            padding: 10px 20px;
+            color: #718096;
+            font-weight: 600;
+        }
+
+        .items-per-page {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .items-per-page select {
+            padding: 8px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Medical News Aggregator</h1>
+            <p>Multi-source health & medical research news from FDA, EMA, and more</p>
+        </div>
+
+        <div class="stats">
+            <div class="stats-content">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalArticles">0</div>
+                    <div class="stat-label">Total Articles</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="displayedArticles">0</div>
+                    <div class="stat-label">Displayed</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="scrapersCount">0</div>
+                    <div class="stat-label">Sources</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="categoriesCount">0</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="lastUpdated">-</div>
+                    <div class="stat-label">Last Updated</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="scraper-info">
+            <h3 style="color: #2d3748; margin-bottom: 15px;">Filter by Source</h3>
+            <div class="scraper-tabs" id="scraperTabs"></div>
+        </div>
+
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 Search articles...">
+            </div>
+            <div class="filter-box">
+                <select id="categoryFilter">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            <div class="filter-box">
+                <select id="dateSort">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                </select>
+            </div>
+            <div class="items-per-page">
+                <label for="itemsPerPage">Show:</label>
+                <select id="itemsPerPage">
+                    <option value="10">10 per page</option>
+                    <option value="20" selected>20 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                    <option value="all">All</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="newsContainer">
+            <div class="loading">Loading articles...</div>
+        </div>
+
+        <div id="paginationContainer" style="display: none;">
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURATION =====
+        // Change this to point to your feeds location
+        const FEEDS_BASE_URL = 'feeds';  // Change to 'https://api.yoursite.com/feeds' if needed
+        const USE_ALL_FEEDS = true;  // Set to true to load ALL articles from all scrapers
+        const LATEST_FEED_FILE = 'latest_feed.json';
+        // =========================
+
+        let feedData = null;
+        let allArticles = [];
+        let categories = new Set();
+        let sources = new Set();
+        let selectedSource = 'all';
+        let currentPage = 1;
+        let itemsPerPage = 20;
+        let filteredArticles = [];
+
+        async function loadFeedData() {
+            try {
+                if (USE_ALL_FEEDS) {
+                    // Load index first to get all available scraper feeds
+                    const indexResponse = await fetch(`${FEEDS_BASE_URL}/index.json`);
+                    if (!indexResponse.ok) {
+                        throw new Error('Failed to load feed index');
+                    }
+                    const indexData = await indexResponse.json();
+                    
+                    // Load all scraper feeds
+                    const scraperFeeds = indexData.feeds.by_scraper || [];
+                    const feedPromises = scraperFeeds.map(scraper => 
+                        fetch(`${FEEDS_BASE_URL}/latest_by_scraper/${scraper}.json`)
+                            .then(res => res.json())
+                            .catch(err => {
+                                console.warn(`Failed to load ${scraper}:`, err);
+                                return null;
+                            })
+                    );
+                    
+                    const allFeeds = await Promise.all(feedPromises);
+                    
+                    // Combine all items from all feeds
+                    feedData = {
+                        feed_type: 'combined',
+                        generated_at: new Date().toISOString(),
+                        items: []
+                    };
+                    
+                    allFeeds.forEach(feed => {
+                        if (feed && feed.items) {
+                            feedData.items.push(...feed.items);
+                        }
+                    });
+                    
+                    console.log(`Loaded ${feedData.items.length} total articles from ${scraperFeeds.length} sources`);
+                } else {
+                    // Load only latest feed (limited to max_items)
+                    const response = await fetch(`${FEEDS_BASE_URL}/${LATEST_FEED_FILE}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    
+                    feedData = await response.json();
+                }
+                
+                initializeApp();
+            } catch (error) {
+                showError(`Failed to load feed: ${error.message}<br><small>Make sure the feed exists at: ${FEEDS_BASE_URL}/${LATEST_FEED_FILE}</small>`);
+            }
+        }
+
+        function showError(message) {
+            const container = document.getElementById('newsContainer');
+            container.innerHTML = `<div class="error">
+                <strong>Error:</strong> ${message}<br><br>
+                <small>Please check that the feed file exists and is accessible.</small>
+            </div>`;
+        }
+
+        function initializeApp() {
+            // Validate feed format
+            if (!feedData || !feedData.items || !Array.isArray(feedData.items)) {
+                showError('Invalid feed format. Expected latest_feed.json format with items array.');
+                return;
+            }
+
+            // Process all items
+            allArticles = feedData.items;
+            categories.clear();
+            sources.clear();
+
+            allArticles.forEach(item => {
+                if (item.category) {
+                    categories.add(item.category);
+                }
+                if (item.source_website) {
+                    sources.add(item.source_website);
+                }
+                // Add scraper name as source if available
+                if (item.scraper) {
+                    sources.add(item.scraper);
+                }
+            });
+
+            createSourceTabs();
+            populateCategoryFilter();
+            updateStats();
+            displayArticles(allArticles);
+        }
+
+        function createSourceTabs() {
+            const tabsContainer = document.getElementById('scraperTabs');
+            tabsContainer.innerHTML = '';
+
+            // Add "All" tab
+            const allTab = document.createElement('div');
+            allTab.className = 'scraper-tab active';
+            allTab.textContent = `All Sources (${allArticles.length})`;
+            allTab.onclick = () => selectSource('all');
+            tabsContainer.appendChild(allTab);
+
+            // Count items per source
+            const sourceCounts = {};
+            allArticles.forEach(item => {
+                const source = item.source_website || item.scraper || 'Unknown';
+                sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+            });
+
+            // Create tab for each source
+            Object.entries(sourceCounts).sort().forEach(([source, count]) => {
+                const tab = document.createElement('div');
+                tab.className = 'scraper-tab';
+                tab.textContent = `${source} (${count})`;
+                tab.onclick = () => selectSource(source);
+                tabsContainer.appendChild(tab);
+            });
+        }
+
+        function selectSource(source) {
+            selectedSource = source;
+
+            // Update tab styling
+            document.querySelectorAll('.scraper-tab').forEach(tab => {
+                if ((source === 'all' && tab.textContent.includes('All Sources')) || 
+                    tab.textContent.startsWith(source + ' ')) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+
+            filterArticles();
+        }
+
+        function populateCategoryFilter() {
+            const filterSelect = document.getElementById('categoryFilter');
+            filterSelect.innerHTML = '<option value="">All Categories</option>';
+            
+            Array.from(categories).sort().forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                filterSelect.appendChild(option);
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('totalArticles').textContent = allArticles.length;
+            document.getElementById('scrapersCount').textContent = sources.size || 1;
+            document.getElementById('categoriesCount').textContent = categories.size || 1;
+
+            // Format last updated date
+            if (feedData.generated_at) {
+                const date = new Date(feedData.generated_at);
+                document.getElementById('lastUpdated').textContent = date.toLocaleDateString();
+            }
+        }
+
+        function displayArticles(articles) {
+            filteredArticles = articles;
+            const container = document.getElementById('newsContainer');
+            document.getElementById('displayedArticles').textContent = articles.length;
+            
+            if (articles.length === 0) {
+                container.innerHTML = '<div class="no-results">No articles found matching your criteria.</div>';
+                document.getElementById('paginationContainer').style.display = 'none';
+                return;
+            }
+
+            // Calculate pagination
+            const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(articles.length / itemsPerPage);
+            currentPage = Math.min(currentPage, totalPages); // Adjust if current page is out of range
+            
+            // Get items for current page
+            let displayItems;
+            if (itemsPerPage === 'all') {
+                displayItems = articles;
+            } else {
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                displayItems = articles.slice(startIndex, endIndex);
+            }
+
+            // Display articles
+            container.innerHTML = '';
+            const grid = document.createElement('div');
+            grid.className = 'news-grid';
+
+            displayItems.forEach(article => {
+                const card = document.createElement('div');
+                card.className = 'news-card';
+                card.onclick = () => window.open(article.url, '_blank');
+
+                const sourceWebsite = article.source_website || 'Unknown';
+                const date = article.date ? new Date(article.date).toLocaleDateString() : 'No date';
+                const excerpt = article.excerpt || 'Click to read more...';
+
+                card.innerHTML = `
+                    <div class="source-badge">${sourceWebsite}</div>
+                    <div class="category-badge">${article.category || 'News'}</div>
+                    <div class="news-date">📅 ${date}</div>
+                    <h2 class="news-title">${article.title}</h2>
+                    <p class="news-excerpt">${excerpt}</p>
+                    <a href="${article.url}" class="news-link" target="_blank" onclick="event.stopPropagation()">Read Full Article →</a>
+                `;
+
+                grid.appendChild(card);
+            });
+
+            container.appendChild(grid);
+
+            // Update pagination
+            if (itemsPerPage !== 'all' && totalPages > 1) {
+                renderPagination(totalPages);
+                document.getElementById('paginationContainer').style.display = 'block';
+            } else {
+                document.getElementById('paginationContainer').style.display = 'none';
+            }
+
+            // Scroll to top smoothly
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderPagination(totalPages) {
+            const paginationEl = document.getElementById('pagination');
+            paginationEl.innerHTML = '';
+
+            // Previous button
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'pagination-btn';
+            prevBtn.textContent = '← Previous';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => {
+                currentPage--;
+                displayArticles(filteredArticles);
+            };
+            paginationEl.appendChild(prevBtn);
+
+            // Page info
+            const pageInfo = document.createElement('div');
+            pageInfo.className = 'pagination-info';
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+            paginationEl.appendChild(pageInfo);
+
+            // Page numbers (show max 7 buttons)
+            const maxButtons = 7;
+            let startPage, endPage;
+
+            if (totalPages <= maxButtons) {
+                startPage = 1;
+                endPage = totalPages;
+            } else {
+                const halfButtons = Math.floor(maxButtons / 2);
+                if (currentPage <= halfButtons) {
+                    startPage = 1;
+                    endPage = maxButtons;
+                } else if (currentPage + halfButtons >= totalPages) {
+                    startPage = totalPages - maxButtons + 1;
+                    endPage = totalPages;
+                } else {
+                    startPage = currentPage - halfButtons;
+                    endPage = currentPage + halfButtons;
+                }
+            }
+
+            // First page button
+            if (startPage > 1) {
+                const firstBtn = document.createElement('button');
+                firstBtn.className = 'pagination-btn';
+                firstBtn.textContent = '1';
+                firstBtn.onclick = () => {
+                    currentPage = 1;
+                    displayArticles(filteredArticles);
+                };
+                paginationEl.appendChild(firstBtn);
+
+                if (startPage > 2) {
+                    const dots = document.createElement('span');
+                    dots.className = 'pagination-info';
+                    dots.textContent = '...';
+                    paginationEl.appendChild(dots);
+                }
+            }
+
+            // Page number buttons
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = 'pagination-btn';
+                if (i === currentPage) {
+                    pageBtn.classList.add('active');
+                }
+                pageBtn.textContent = i;
+                pageBtn.onclick = () => {
+                    currentPage = i;
+                    displayArticles(filteredArticles);
+                };
+                paginationEl.appendChild(pageBtn);
+            }
+
+            // Last page button
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.className = 'pagination-info';
+                    dots.textContent = '...';
+                    paginationEl.appendChild(dots);
+                }
+
+                const lastBtn = document.createElement('button');
+                lastBtn.className = 'pagination-btn';
+                lastBtn.textContent = totalPages;
+                lastBtn.onclick = () => {
+                    currentPage = totalPages;
+                    displayArticles(filteredArticles);
+                };
+                paginationEl.appendChild(lastBtn);
+            }
+
+            // Next button
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'pagination-btn';
+            nextBtn.textContent = 'Next →';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => {
+                currentPage++;
+                displayArticles(filteredArticles);
+            };
+            paginationEl.appendChild(nextBtn);
+        }
+
+        document.getElementById('searchInput').addEventListener('input', filterArticles);
+        document.getElementById('categoryFilter').addEventListener('change', filterArticles);
+        document.getElementById('dateSort').addEventListener('change', filterArticles);
+        document.getElementById('itemsPerPage').addEventListener('change', function() {
+            itemsPerPage = this.value === 'all' ? 'all' : parseInt(this.value);
+            currentPage = 1; // Reset to first page
+            displayArticles(filteredArticles);
+        });
+
+        function filterArticles() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const selectedCategory = document.getElementById('categoryFilter').value;
+            const sortOrder = document.getElementById('dateSort').value;
+
+            let filtered = allArticles.filter(article => {
+                // Filter by source
+                const articleSource = article.source_website || article.scraper || 'Unknown';
+                const matchesSource = selectedSource === 'all' || articleSource === selectedSource;
+
+                // Filter by search
+                const matchesSearch = !searchTerm || 
+                    article.title.toLowerCase().includes(searchTerm) ||
+                    (article.excerpt && article.excerpt.toLowerCase().includes(searchTerm));
+                
+                // Filter by category
+                const matchesCategory = !selectedCategory || article.category === selectedCategory;
+
+                return matchesSource && matchesSearch && matchesCategory;
+            });
+
+            // Sort by date
+            filtered.sort((a, b) => {
+                const dateA = a.date ? new Date(a.date) : new Date(0);
+                const dateB = b.date ? new Date(b.date) : new Date(0);
+                
+                return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+            });
+
+            currentPage = 1; // Reset to first page when filtering
+            displayArticles(filtered);
+        }
+
+        // Initialize the application
+        loadFeedData();
+    </script>
+</body>
+</html>
