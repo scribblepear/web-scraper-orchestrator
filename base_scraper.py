@@ -302,7 +302,7 @@ class FeedGenerator:
                 'word_count': item.get('word_count', 0)
             }
     
-    def generate_latest_feed(self, master_data: Dict[str, Any], max_items: int = 100) -> str:
+    def generate_latest_feed(self, master_data: Dict[str, Any], max_items: int = None) -> str:
         """Generate latest feed across all scrapers"""
         
         all_items = []
@@ -318,8 +318,12 @@ class FeedGenerator:
         all_items.sort(key=lambda x: x.get('date', '') or x.get('scraped_at', ''), reverse=True)
         
         # Limit to max_items
-        latest_items = all_items[:max_items]
-        
+        # Limit to max_items
+        if max_items is not None:
+            latest_items = all_items[:max_items]
+        else:
+            latest_items = all_items
+
         feed = {
             'feed_type': 'latest',
             'generated_at': datetime.now().isoformat(),
