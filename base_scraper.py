@@ -317,8 +317,7 @@ class FeedGenerator:
         # Sort by date (most recent first)
         all_items.sort(key=lambda x: x.get('date', '') or x.get('scraped_at', ''), reverse=True)
         
-        # Limit to max_items
-        # Limit to max_items
+        # Limit to max_items only if specified
         if max_items is not None:
             latest_items = all_items[:max_items]
         else:
@@ -328,7 +327,7 @@ class FeedGenerator:
             'feed_type': 'latest',
             'generated_at': datetime.now().isoformat(),
             'total_items': len(latest_items),
-            'max_items': max_items,
+            'max_items': max_items if max_items is not None else 'all',
             'items': latest_items
         }
         
@@ -782,7 +781,7 @@ class ScraperOrchestrator:
         print(f"Master file updated: {self.master_file_path}")
         return str(self.master_file_path)
     
-    def generate_feeds(self, max_latest_items: int = 100, max_per_scraper: int = 50):
+    def generate_feeds(self, max_latest_items: int = None, max_per_scraper: int = 50):
         """Generate all feed files"""
         print("\n=== Generating Feeds ===")
         
@@ -882,7 +881,7 @@ def main():
     parser.add_argument('--master-file', default='master_scraped_data.json', help='Master file name')
     parser.add_argument('--no-full-content', action='store_true', help='Skip full content scraping')
     parser.add_argument('--report-only', action='store_true', help='Generate report only')
-    parser.add_argument('--max-latest', type=int, default=100, help='Max items in latest feed')
+    parser.add_argument('--max-latest', type=int, default=None, help='Max items in latest feed (None for all)')
     parser.add_argument('--max-per-scraper', type=int, default=50, help='Max items per scraper feed')
     parser.add_argument('--feeds-only', action='store_true', help='Only regenerate feeds from existing data')
     
@@ -991,46 +990,22 @@ if __name__ == "__main__":
 
 # USAGE EXAMPLES:
 # 
-# 1. Run with default filters (RSS, subscribe, etc. excluded):
+# 1. Generate feeds with ALL items (no limit):
+#    python base_scraper.py --feeds-only
+#
+# 2. Run scraper and generate feeds with ALL items:
 #    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30
 #
-# 2. Run with custom filter keywords:
+# 3. Run with specific limit:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --max-latest 200
+#
+# 4. Run with custom filter keywords:
 #    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
 #      --title-exclude rss subscribe newsletter advertisement \
 #      --url-exclude feed subscribe
 #
-# 3. Run with exact title exclusions:
-#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
-#      --exact-exclude "Subscribe to news release RSS feed" "Join our newsletter"
-#
-# 4. Load filter configuration from JSON file:
+# 5. Load filter configuration from JSON file:
 #    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
 #      --filter-config filters.json
-#
-# 5. Save current filter configuration:
-#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
-#      --title-exclude rss subscribe \
-#      --save-filter-config my_filters.json
-#
-# 6. Case-sensitive filtering:
-#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
-#      --case-sensitive
-#
-# 7. Regenerate feeds only (no scraping):
-#    python base_scraper.py --feeds-only
-#
-# 8. Run specific scraper with custom filters:
-#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
-#      --scraper fda_scraper --title-exclude rss subscribe
 
-
-# FILTER CONFIGURATION FILE EXAMPLE (filters.json):
-# {
-#   "title_exclude_keywords": ["rss", "subscribe", "subscription", "newsletter"],
-#   "url_exclude_keywords": ["rss", "feed", "subscribe"],
-#   "title_exclude_exact": ["Subscribe to news release RSS feed"],
-#   "category_exclude": ["Advertisement", "Sponsored"],
-#   "url_exclude_patterns": [".*\\/feed\\/.*", ".*\\/rss\\/.*"],
-#   "min_title_length": 5,
-#   "case_sensitive": false
-# }
+#  python base_scraper.py --start-date 2025-01-01 --end-date 2025-11-14 --title-exclude rss subscribe newsletter --url-exclude feed subscribe --exact-exclude "Subscribe to news release RSS feed"
