@@ -1,0 +1,79 @@
+# Alzheimer's Disease Keywords
+# One keyword per line
+# Lines starting with # are comments and will be ignored
+
+# Core Alzheimer's terms
+alzheimer
+alzheimers
+alzheimer's
+dementia
+cognitive decline
+cognitive impairment
+memory loss
+neurodegeneration
+neurodegenerative
+
+# Clinical trial terms
+clinical trial
+phase 1
+phase 2
+phase 3
+phase I
+phase II
+phase III
+trial results
+study enrollment
+
+# Treatment and drug related
+treatment
+therapy
+therapeutic
+drug approval
+FDA approval
+breakthrough therapy
+investigational drug
+monoclonal antibody
+immunotherapy
+neuroprotective
+
+# Specific drugs
+lecanemab
+donanemab
+aducanumab
+gantenerumab
+
+# Disease mechanisms
+amyloid
+beta-amyloid
+tau protein
+anti-amyloid
+amyloid-beta
+plaque
+
+# Research and diagnosis
+biomarker
+early detection
+diagnosis
+diagnostic test
+brain imaging
+PET scan
+cerebrospinal fluid
+blood test
+
+# Disease stages
+mild cognitive impairment
+MCI
+early-stage
+prodromal
+preclinical
+
+# Outcomes and measurements
+cognitive function
+disease progression
+ADAS-Cog
+MMSE
+
+# Organizations
+NIH
+National Institute on Aging
+Alzheimer's Association
