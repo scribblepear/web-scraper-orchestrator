@@ -8,6 +8,130 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Set
 import uuid
 
+class ContentFilter:
+    """Flexible content filtering system"""
+    
+    def __init__(self, config: Dict[str, Any] = None):
+        self.config = config or {}
+        
+        # Default filters
+        self.title_exclude_keywords = self.config.get('title_exclude_keywords', [
+            'rss', 'subscribe', 'subscription', 'newsletter signup'
+        ])
+        
+        self.url_exclude_keywords = self.config.get('url_exclude_keywords', [
+            'rss', 'feed', 'subscribe'
+        ])
+        
+        self.url_exclude_patterns = self.config.get('url_exclude_patterns', [])
+        
+        self.title_exclude_exact = self.config.get('title_exclude_exact', [
+            'Subscribe to news release RSS feed'
+        ])
+        
+        self.category_exclude = self.config.get('category_exclude', [])
+        
+        self.min_title_length = self.config.get('min_title_length', 3)
+        
+        self.custom_filter_functions = self.config.get('custom_filters', [])
+        
+        self.case_sensitive = self.config.get('case_sensitive', False)
+        
+        # Statistics
+        self.filtered_count = 0
+        self.filter_reasons = {}
+    
+    def should_filter(self, item: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        Check if item should be filtered out
+        Returns: (should_filter: bool, reason: str)
+        """
+        title = item.get('title', '')
+        url = item.get('url', '')
+        category = item.get('category', '')
+        
+        # Apply case sensitivity
+        if not self.case_sensitive:
+            title_check = title.lower()
+            url_check = url.lower()
+            category_check = category.lower()
+        else:
+            title_check = title
+            url_check = url
+            category_check = category
+        
+        # Check exact title matches
+        for exact_title in self.title_exclude_exact:
+            check_against = exact_title if self.case_sensitive else exact_title.lower()
+            if title_check == check_against:
+                return True, f"exact_title_match: '{exact_title}'"
+        
+        # Check title keywords
+        for keyword in self.title_exclude_keywords:
+            check_keyword = keyword if self.case_sensitive else keyword.lower()
+            if check_keyword in title_check:
+                return True, f"title_keyword: '{keyword}'"
+        
+        # Check URL keywords
+        for keyword in self.url_exclude_keywords:
+            check_keyword = keyword if self.case_sensitive else keyword.lower()
+            if check_keyword in url_check:
+                return True, f"url_keyword: '{keyword}'"
+        
+        # Check URL patterns (regex)
+        import re
+        for pattern in self.url_exclude_patterns:
+            if re.search(pattern, url, re.IGNORECASE if not self.case_sensitive else 0):
+                return True, f"url_pattern: '{pattern}'"
+        
+        # Check category exclusions
+        for excluded_cat in self.category_exclude:
+            check_cat = excluded_cat if self.case_sensitive else excluded_cat.lower()
+            if check_cat == category_check:
+                return True, f"category: '{excluded_cat}'"
+        
+        # Check minimum title length
+        if len(title.strip()) < self.min_title_length:
+            return True, f"title_too_short: {len(title)} < {self.min_title_length}"
+        
+        # Apply custom filter functions
+        for custom_filter in self.custom_filter_functions:
+            if callable(custom_filter):
+                try:
+                    if custom_filter(item):
+                        return True, "custom_filter"
+                except Exception as e:
+                    print(f"Warning: Custom filter error: {e}")
+        
+        return False, ""
+    
+    def filter_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Filter a list of items and return only valid ones"""
+        filtered_items = []
+        
+        for item in items:
+            should_filter, reason = self.should_filter(item)
+            
+            if should_filter:
+                self.filtered_count += 1
+                self.filter_reasons[reason] = self.filter_reasons.get(reason, 0) + 1
+            else:
+                filtered_items.append(item)
+        
+        return filtered_items
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get filtering statistics"""
+        return {
+            'total_filtered': self.filtered_count,
+            'filter_reasons': self.filter_reasons
+        }
+    
+    def reset_statistics(self):
+        """Reset filtering statistics"""
+        self.filtered_count = 0
+        self.filter_reasons = {}
+
 class BaseScraperInterface(ABC):
     """Abstract base class that all website scrapers must implement"""
     
@@ -32,9 +156,9 @@ class BaseScraperInterface(ABC):
         pass
 
 class ScraperResult:
-    """Standardized result container with deduplication support"""
+    """Standardized result container with deduplication and filtering support"""
     
-    def __init__(self, scraper_name: str, website: str, existing_urls: Set[str] = None):
+    def __init__(self, scraper_name: str, website: str, existing_urls: Set[str] = None, content_filter: ContentFilter = None):
         self.scraper_name = scraper_name
         self.website = website
         self.scraped_at = datetime.now().isoformat()
@@ -47,11 +171,20 @@ class ScraperResult:
         self.existing_urls = existing_urls or set()
         self.new_urls = set()
         self.skipped_duplicates = 0
+        self.content_filter = content_filter or ContentFilter()
+        self.filtered_items = 0
     
     def add_announcement(self, announcement: Dict[str, Any]):
-        """Add announcement if URL is not a duplicate"""
+        """Add announcement if URL is not a duplicate and passes filters"""
         url = announcement.get('url', '')
         
+        # Apply content filter first
+        should_filter, reason = self.content_filter.should_filter(announcement)
+        if should_filter:
+            self.filtered_items += 1
+            return False  # Skip filtered item
+        
+        # Check for duplicates
         if url and url in self.existing_urls:
             self.skipped_duplicates += 1
             return False  # Skip duplicate
@@ -105,6 +238,8 @@ class ScraperResult:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
+        filter_stats = self.content_filter.get_statistics()
+        
         return {
             'scraper_info': {
                 'scraper_name': self.scraper_name,
@@ -117,6 +252,8 @@ class ScraperResult:
                 'total_full_content': len(self.full_content),
                 'total_errors': len(self.errors),
                 'skipped_duplicates': self.skipped_duplicates,
+                'filtered_items': self.filtered_items,
+                'filter_reasons': filter_stats.get('filter_reasons', {}),
                 'new_urls_found': len(self.new_urls),
                 **self.statistics
             },
@@ -306,12 +443,13 @@ class FeedGenerator:
         return str(index_path)
 
 class ScraperOrchestrator:
-    """Main orchestrator with deduplication and feed generation support"""
+    """Main orchestrator with deduplication, filtering, and feed generation support"""
     
     def __init__(self, scrapers_directory: str = "scrapers", 
                  output_directory: str = "scraped_data", 
                  master_file: str = "master_scraped_data.json",
-                 feeds_directory: str = "feeds"):
+                 feeds_directory: str = "feeds",
+                 filter_config: Dict[str, Any] = None):
         self.scrapers_directory = Path(scrapers_directory)
         self.output_directory = Path(output_directory)
         self.output_directory.mkdir(exist_ok=True)
@@ -319,8 +457,49 @@ class ScraperOrchestrator:
         
         self.feed_generator = FeedGenerator(feeds_directory)
         
+        # Content filter configuration
+        self.filter_config = filter_config or self._get_default_filter_config()
+        self.content_filter = ContentFilter(self.filter_config)
+        
         self.loaded_scrapers = {}
         self.results = {}
+    
+    def _get_default_filter_config(self) -> Dict[str, Any]:
+        """Get default filter configuration"""
+        return {
+            'title_exclude_keywords': ['rss', 'subscribe', 'subscription', 'newsletter'],
+            'url_exclude_keywords': ['rss', 'feed', 'subscribe'],
+            'title_exclude_exact': ['Subscribe to news release RSS feed'],
+            'category_exclude': [],
+            'url_exclude_patterns': [],
+            'min_title_length': 3,
+            'case_sensitive': False,
+            'custom_filters': []
+        }
+    
+    def load_filter_config(self, config_file: str):
+        """Load filter configuration from JSON file"""
+        config_path = Path(config_file)
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self.filter_config = json.load(f)
+                self.content_filter = ContentFilter(self.filter_config)
+                print(f"Loaded filter config from: {config_file}")
+        else:
+            print(f"Filter config not found: {config_file}, using defaults")
+    
+    def save_filter_config(self, config_file: str):
+        """Save current filter configuration to JSON file"""
+        config_path = Path(config_file)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(self.filter_config, f, indent=2, ensure_ascii=False)
+        print(f"Filter config saved to: {config_file}")
+    
+    def update_filter_config(self, **kwargs):
+        """Update filter configuration dynamically"""
+        self.filter_config.update(kwargs)
+        self.content_filter = ContentFilter(self.filter_config)
+        print("Filter configuration updated")
     
     def load_existing_data(self) -> Dict[str, Any]:
         """Load existing data from master file"""
@@ -435,7 +614,7 @@ class ScraperOrchestrator:
     
     def run_scraper(self, scraper_name: str, start_date: str, end_date: str, 
                    scrape_full_content: bool = True, **kwargs) -> ScraperResult:
-        """Run a specific scraper with deduplication"""
+        """Run a specific scraper with deduplication and filtering"""
         
         if scraper_name not in self.loaded_scrapers:
             available = list(self.loaded_scrapers.keys())
@@ -450,11 +629,12 @@ class ScraperOrchestrator:
         existing_urls = self.get_existing_urls(scraper_name)
         print(f"Found {len(existing_urls)} existing URLs, checking for duplicates...")
         
-        # Create result container with existing URLs
+        # Create result container with existing URLs and content filter
         result = ScraperResult(
             scraper_info['name'], 
             scraper_info.get('website', 'Unknown'),
-            existing_urls
+            existing_urls,
+            ContentFilter(self.filter_config)
         )
         
         try:
@@ -470,6 +650,14 @@ class ScraperOrchestrator:
             print(f"Found {len(announcements)} total announcements")
             print(f"Added {len(new_announcements)} new announcements")
             print(f"Skipped {result.skipped_duplicates} duplicates")
+            print(f"Filtered {result.filtered_items} unwanted items")
+            
+            # Show filter reasons
+            filter_stats = result.content_filter.get_statistics()
+            if filter_stats['filter_reasons']:
+                print("Filter breakdown:")
+                for reason, count in filter_stats['filter_reasons'].items():
+                    print(f"  - {reason}: {count}")
             
             # Step 2: Scrape full content for new URLs only
             if scrape_full_content and new_announcements:
@@ -501,7 +689,7 @@ class ScraperOrchestrator:
     
     def run_all_scrapers(self, start_date: str, end_date: str, 
                         scrape_full_content: bool = True, **kwargs) -> Dict[str, ScraperResult]:
-        """Run all available scrapers with deduplication"""
+        """Run all available scrapers with deduplication and filtering"""
         results = {}
         
         for scraper_name in self.loaded_scrapers:
@@ -556,6 +744,8 @@ class ScraperOrchestrator:
                     'total_errors': len(existing_scraper_data['errors']),
                     'last_scrape_new_items': new_stats.get('total_announcements', 0),
                     'last_scrape_skipped': new_stats.get('skipped_duplicates', 0),
+                    'last_scrape_filtered': new_stats.get('filtered_items', 0),
+                    'filter_reasons': new_stats.get('filter_reasons', {}),
                     'last_scrape_date': new_scraper_data['scraper_info']['scraped_at']
                 }
         
@@ -607,7 +797,7 @@ class ScraperOrchestrator:
         print("=== Feed Generation Complete ===\n")
     
     def generate_report(self, results: Dict[str, ScraperResult]) -> str:
-        """Generate a summary report including deduplication stats"""
+        """Generate a summary report including deduplication and filtering stats"""
         existing_data = self.load_existing_data()
         
         report_lines = [
@@ -621,6 +811,7 @@ class ScraperOrchestrator:
         new_announcements = 0
         new_content = 0
         skipped_duplicates = 0
+        filtered_items = 0
         
         for scraper_name, result in results.items():
             report_lines.extend([
@@ -629,13 +820,23 @@ class ScraperOrchestrator:
                 f"  New Announcements: {len(result.announcements)}",
                 f"  New Full Content: {len(result.full_content)}",
                 f"  Skipped Duplicates: {result.skipped_duplicates}",
+                f"  Filtered Items: {result.filtered_items}",
                 f"  Errors: {len(result.errors)}",
-                ""
             ])
+            
+            # Show filter breakdown if any items were filtered
+            if result.filtered_items > 0:
+                filter_stats = result.content_filter.get_statistics()
+                report_lines.append("  Filter Breakdown:")
+                for reason, count in filter_stats.get('filter_reasons', {}).items():
+                    report_lines.append(f"    - {reason}: {count}")
+            
+            report_lines.append("")
             
             new_announcements += len(result.announcements)
             new_content += len(result.full_content)
             skipped_duplicates += result.skipped_duplicates
+            filtered_items += result.filtered_items
         
         # Overall stats from master file
         summary = existing_data.get('summary', {})
@@ -646,6 +847,7 @@ class ScraperOrchestrator:
             f"New Announcements: {new_announcements}",
             f"New Full Content: {new_content}",
             f"Skipped Duplicates: {skipped_duplicates}",
+            f"Filtered Items: {filtered_items}",
             "",
             "MASTER FILE SUMMARY",
             f"Total Scrapers: {summary.get('scrapers_count', 0)}",
@@ -654,6 +856,11 @@ class ScraperOrchestrator:
             f"Total Errors: {summary.get('total_errors', 0)}",
             f"First Scrape: {history.get('first_scrape', 'Unknown')}",
             f"Total Scraping Sessions: {history.get('total_scrapes', 0)}",
+            "",
+            "FILTER CONFIGURATION",
+            f"Title exclude keywords: {', '.join(self.filter_config.get('title_exclude_keywords', []))}",
+            f"URL exclude keywords: {', '.join(self.filter_config.get('url_exclude_keywords', []))}",
+            f"Exact title exclusions: {', '.join(self.filter_config.get('title_exclude_exact', []))}",
         ])
         
         return "\n".join(report_lines)
@@ -661,7 +868,7 @@ class ScraperOrchestrator:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description='Universal Web Scraper Orchestrator with Rolling Feeds')
+    parser = argparse.ArgumentParser(description='Universal Web Scraper Orchestrator with Flexible Filtering')
     parser.add_argument('--start-date', required=True, help='Start date (YYYY-MM-DD)')
     parser.add_argument('--end-date', required=True, help='End date (YYYY-MM-DD)')
     parser.add_argument('--scraper', help='Run specific scraper (default: run all)')
@@ -675,10 +882,56 @@ def main():
     parser.add_argument('--max-per-scraper', type=int, default=50, help='Max items per scraper feed')
     parser.add_argument('--feeds-only', action='store_true', help='Only regenerate feeds from existing data')
     
+    # Filter configuration arguments
+    parser.add_argument('--filter-config', help='Path to filter configuration JSON file')
+    parser.add_argument('--save-filter-config', help='Save current filter config to file')
+    parser.add_argument('--title-exclude', nargs='+', help='Keywords to exclude from titles')
+    parser.add_argument('--url-exclude', nargs='+', help='Keywords to exclude from URLs')
+    parser.add_argument('--exact-exclude', nargs='+', help='Exact titles to exclude')
+    parser.add_argument('--min-title-length', type=int, help='Minimum title length')
+    parser.add_argument('--case-sensitive', action='store_true', help='Enable case-sensitive filtering')
+    
     args = parser.parse_args()
     
+    # Build filter configuration
+    filter_config = None
+    if args.filter_config:
+        # Load from file
+        filter_config = {}
+        try:
+            with open(args.filter_config, 'r', encoding='utf-8') as f:
+                filter_config = json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load filter config: {e}")
+    else:
+        # Build from command line arguments
+        filter_config = {}
+        if args.title_exclude:
+            filter_config['title_exclude_keywords'] = args.title_exclude
+        if args.url_exclude:
+            filter_config['url_exclude_keywords'] = args.url_exclude
+        if args.exact_exclude:
+            filter_config['title_exclude_exact'] = args.exact_exclude
+        if args.min_title_length:
+            filter_config['min_title_length'] = args.min_title_length
+        if args.case_sensitive:
+            filter_config['case_sensitive'] = True
+    
     # Create orchestrator
-    orchestrator = ScraperOrchestrator(args.scrapers_dir, args.output_dir, args.master_file, args.feeds_dir)
+    orchestrator = ScraperOrchestrator(
+        args.scrapers_dir, 
+        args.output_dir, 
+        args.master_file, 
+        args.feeds_dir,
+        filter_config if filter_config else None
+    )
+    
+    # Save filter config if requested
+    if args.save_filter_config:
+        orchestrator.save_filter_config(args.save_filter_config)
+        print(f"Filter configuration saved to {args.save_filter_config}")
+        if args.feeds_only:
+            sys.exit(0)
     
     # If feeds-only mode, skip scraping
     if args.feeds_only:
@@ -734,17 +987,46 @@ if __name__ == "__main__":
 
 # USAGE EXAMPLES:
 # 
-# 1. Run all scrapers and generate feeds:
+# 1. Run with default filters (RSS, subscribe, etc. excluded):
 #    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30
 #
-# 2. Run specific scraper:
-#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --scraper fda_scraper
+# 2. Run with custom filter keywords:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
+#      --title-exclude rss subscribe newsletter advertisement \
+#      --url-exclude feed subscribe
 #
-# 3. Regenerate feeds only (no scraping):
+# 3. Run with exact title exclusions:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
+#      --exact-exclude "Subscribe to news release RSS feed" "Join our newsletter"
+#
+# 4. Load filter configuration from JSON file:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
+#      --filter-config filters.json
+#
+# 5. Save current filter configuration:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
+#      --title-exclude rss subscribe \
+#      --save-filter-config my_filters.json
+#
+# 6. Case-sensitive filtering:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
+#      --case-sensitive
+#
+# 7. Regenerate feeds only (no scraping):
 #    python base_scraper.py --feeds-only
 #
-# 4. Custom feed sizes:
-#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --max-latest 200 --max-per-scraper 100
-#
-# 5. Custom output directories:
-#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 --feeds-dir public/feeds
+# 8. Run specific scraper with custom filters:
+#    python base_scraper.py --start-date 2024-09-01 --end-date 2024-09-30 \
+#      --scraper fda_scraper --title-exclude rss subscribe
+
+
+# FILTER CONFIGURATION FILE EXAMPLE (filters.json):
+# {
+#   "title_exclude_keywords": ["rss", "subscribe", "subscription", "newsletter"],
+#   "url_exclude_keywords": ["rss", "feed", "subscribe"],
+#   "title_exclude_exact": ["Subscribe to news release RSS feed"],
+#   "category_exclude": ["Advertisement", "Sponsored"],
+#   "url_exclude_patterns": [".*\\/feed\\/.*", ".*\\/rss\\/.*"],
+#   "min_title_length": 5,
+#   "case_sensitive": false
+# }
