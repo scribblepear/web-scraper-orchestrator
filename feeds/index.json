@@ -1,0 +1,22 @@
+{
+  "generated_at": "2025-11-19T14:29:12.276520",
+  "feeds": {
+    "latest": "latest_feed.json",
+    "by_scraper": [
+      "alz_org_scraper",
+      "fda_scraper"
+    ],
+    "monthly_archives": []
+  },
+  "statistics": {
+    "total_announcements": 100,
+    "total_full_content": 100,
+    "total_errors": 0,
+    "scrapers_count": 2,
+    "last_updated": "2025-11-19T14:29:12.197008"
+  },
+  "available_scrapers": [
+    "fda_scraper",
+    "alz_org_scraper"
+  ]
+}

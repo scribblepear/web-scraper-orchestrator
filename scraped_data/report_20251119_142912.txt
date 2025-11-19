@@ -1,0 +1,38 @@
+WEB SCRAPING REPORT
+Generated at: 2025-11-19 14:29:12
+Master file: scraped_data/master_scraped_data.json
+
+Scraper: alz_org_scraper
+  Website: alz.org
+  New Announcements: 0
+  New Full Content: 0
+  Skipped Duplicates: 0
+  Filtered Items: 0
+  Errors: 0
+
+Scraper: fda_scraper
+  Website: fda.gov
+  New Announcements: 0
+  New Full Content: 0
+  Skipped Duplicates: 0
+  Filtered Items: 0
+  Errors: 0
+
+CURRENT RUN SUMMARY
+New Announcements: 0
+New Full Content: 0
+Skipped Duplicates: 0
+Filtered Items: 0
+
+MASTER FILE SUMMARY
+Total Scrapers: 2
+Total Announcements: 100
+Total Full Content: 100
+Total Errors: 0
+First Scrape: 2025-09-25T03:13:13.864414
+Total Scraping Sessions: 7
+
+FILTER CONFIGURATION
+Title exclude keywords: rss, subscribe, subscription, newsletter
+URL exclude keywords: rss, feed, subscribe
+Exact title exclusions: Subscribe to news release RSS feed
